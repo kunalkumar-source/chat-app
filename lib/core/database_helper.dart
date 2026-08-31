@@ -39,19 +39,5 @@ class DatabaseHelper {
     // 4. Message Outbox Queue Table
     await db.execute(
         'CREATE TABLE IF NOT EXISTS message_outbox(id INTEGER PRIMARY KEY AUTOINCREMENT, operation TEXT, entityId TEXT, payload TEXT, status TEXT, retryCount INTEGER DEFAULT 0, nextRetryAt INTEGER, lastError TEXT, createdAt INTEGER)');
-
-    // 5. Reels Cache Table
-    await db.execute('''
-      CREATE TABLE IF NOT EXISTS reels_cache(
-        id TEXT PRIMARY KEY,
-        videoUrl TEXT,
-        imageUrl TEXT,
-        caption TEXT,
-        location TEXT,
-        music TEXT,
-        authorUsername TEXT,
-        authorAvatar TEXT
-      )
-    ''');
   }
 }

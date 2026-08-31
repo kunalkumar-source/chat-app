@@ -76,6 +76,11 @@ class ChatRepositoryImpl implements IChatRepository {
           _socketClient.emit('user_online', _activeUserId);
         }
         processPendingOutbox();
+      } else if (status == SocketStatus.disconnected ||
+          status == SocketStatus.error) {
+        debugPrint(
+            '🔴 [SOCKET] Disconnected or error. Resetting socket presence states.');
+        _presenceStateMap.clear();
       }
     });
 
@@ -132,31 +137,29 @@ class ChatRepositoryImpl implements IChatRepository {
     try {
       // 1. Fetch fresh users from backend API
       final users = await _apiService.getAllUsers();
-      final db = await _dbHelper.database;
 
-      // Read current presence states from SQLite to prevent overwriting live online statuses
-      final existingUsers =
-          await db.query('chat_users', columns: ['id', 'isOnline']);
-      final onlineMap = <String, bool>{};
-      for (var row in existingUsers) {
-        if (row['isOnline'] == 1) {
-          onlineMap[row['id'].toString()] = true;
-        }
+      if (users.isEmpty) {
+        return [];
       }
 
-      // 2. Cache users in local SQLite database (PRESERVING active presence states)
+      final db = await _dbHelper.database;
+
+      // 2. Cache users in local SQLite database with fresh online presence states
       final batch = db.batch();
       final updatedUsers = <ChatUser>[];
       for (var user in users) {
-        final isOnline =
-            _presenceStateMap[user.id] ?? onlineMap[user.id] ?? user.isOnline;
+        final isOnline = _presenceStateMap[user.id] ?? user.isOnline;
+        _presenceStateMap[user.id] = isOnline;
+
         final updatedUser = user.copyWith(isOnline: isOnline);
         updatedUsers.add(updatedUser);
 
-        final map = user.toMap();
+        final map = ChatUserModel.fromEntity(updatedUser).toMap();
         map['isOnline'] = isOnline ? 1 : 0;
         batch.insert('chat_users', map,
             conflictAlgorithm: ConflictAlgorithm.replace);
+
+        _userPresenceController.add(user.id);
       }
       await batch.commit(noResult: true);
 
@@ -169,15 +172,8 @@ class ChatRepositoryImpl implements IChatRepository {
 
       return updatedUsers;
     } catch (e) {
-      debugPrint(
-          '⚠️ [CHAT REPO] API user fetch failed, loading from local DB: $e');
-      final db = await _dbHelper.database;
-      final maps = await db.query('chat_users');
-      return maps.map((m) {
-        final u = ChatUserModel.fromMap(m);
-        final isOnline = _presenceStateMap[u.id] ?? u.isOnline;
-        return u.copyWith(isOnline: isOnline);
-      }).toList();
+      debugPrint('⚠️ [CHAT REPO] API user fetch failed: $e');
+      rethrow;
     }
   }
 
@@ -842,7 +838,8 @@ class ChatRepositoryImpl implements IChatRepository {
   @override
   Future<String?> getAutoBackupFilePath(String userId) async {
     final docsDir = await getApplicationDocumentsDirectory();
-    final filePath = p.join(docsDir.path, 'ChatBackups', 'chat_backup_$userId.json');
+    final filePath =
+        p.join(docsDir.path, 'ChatBackups', 'chat_backup_$userId.json');
     final file = File(filePath);
     if (await file.exists()) {
       return filePath;
@@ -925,14 +922,16 @@ class ChatRepositoryImpl implements IChatRepository {
     _conversationsUpdateController.add(null);
     _messagesUpdateController.add('');
     _userPresenceController.add('');
-    debugPrint('🗑️ [CHAT REPO] Cleared all local chats, messages, and outbox.');
+    debugPrint(
+        '🗑️ [CHAT REPO] Cleared all local chats, messages, and outbox.');
   }
 
   @override
   Future<void> clearConversationMessages(String conversationId) async {
     if (conversationId.isEmpty) return;
     final db = await _dbHelper.database;
-    await db.delete('messages', where: 'conversationId = ?', whereArgs: [conversationId]);
+    await db.delete('messages',
+        where: 'conversationId = ?', whereArgs: [conversationId]);
     await db.update(
       'conversations',
       {
@@ -947,6 +946,7 @@ class ChatRepositoryImpl implements IChatRepository {
 
     _messagesUpdateController.add(conversationId);
     _conversationsUpdateController.add(null);
-    debugPrint('🧹 [CHAT REPO] Cleared all messages for conversation: $conversationId');
+    debugPrint(
+        '🧹 [CHAT REPO] Cleared all messages for conversation: $conversationId');
   }
 }

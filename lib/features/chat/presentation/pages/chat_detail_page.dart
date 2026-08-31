@@ -730,6 +730,14 @@ class _MessageBubble extends StatelessWidget {
 
   const _MessageBubble({required this.message, required this.isMe});
 
+  String _formatMessageTime(DateTime dt) {
+    final hour24 = dt.hour;
+    final minute = dt.minute.toString().padLeft(2, '0');
+    final period = hour24 >= 12 ? 'PM' : 'AM';
+    final hour12 = hour24 % 12 == 0 ? 12 : hour24 % 12;
+    return '$hour12:$minute $period';
+  }
+
   @override
   Widget build(BuildContext context) {
     return Align(
@@ -774,7 +782,7 @@ class _MessageBubble extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
-                  '${message.createdAt.hour}:${message.createdAt.minute.toString().padLeft(2, '0')}',
+                  _formatMessageTime(message.createdAt),
                   style: const TextStyle(
                     color: AppColors.textSubtle,
                     fontSize: 10,

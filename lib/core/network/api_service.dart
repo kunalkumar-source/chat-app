@@ -26,7 +26,19 @@ class ApiService {
 
   Future<List<ChatUserModel>> getAllUsers() async {
     final response = await _apiClient.get('/api/users');
-    final List<dynamic> data = response.data['users'] ?? [];
-    return data.map((u) => ChatUserModel.fromJson(u)).toList();
+    if (response.data == null) {
+      return [];
+    }
+    List<dynamic> usersJson = [];
+    if (response.data is List) {
+      usersJson = response.data as List<dynamic>;
+    } else if (response.data is Map) {
+      final mapData = response.data as Map<String, dynamic>;
+      final listData = mapData['users'] ?? mapData['data'];
+      if (listData is List) {
+        usersJson = listData;
+      }
+    }
+    return usersJson.map((u) => ChatUserModel.fromJson(u)).toList();
   }
 }

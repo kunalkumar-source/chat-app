@@ -4,7 +4,6 @@ import 'package:testingfeature/core/theme/app_colors.dart';
 import 'package:testingfeature/features/auth/presentation/providers/auth_providers.dart';
 import 'package:testingfeature/features/chat/domain/entities/conversation.dart';
 import 'package:testingfeature/features/chat/domain/repositories/chat_repository.dart';
-import 'package:testingfeature/features/reels/presentation/pages/reels_page.dart';
 import 'package:testingfeature/features/settings/presentation/pages/settings_page.dart';
 import '../providers/chat_providers.dart';
 import 'chat_detail_page.dart';
@@ -77,11 +76,14 @@ class _UserListPageState extends ConsumerState<UserListPage>
     final now = DateTime.now();
     final isToday =
         dt.day == now.day && dt.month == now.month && dt.year == now.year;
-    final hour = dt.hour.toString().padLeft(2, '0');
+    final hour24 = dt.hour;
     final minute = dt.minute.toString().padLeft(2, '0');
+    final period = hour24 >= 12 ? 'PM' : 'AM';
+    final hour12 = hour24 % 12 == 0 ? 12 : hour24 % 12;
+    final timeStr = '$hour12:$minute $period';
 
     if (isToday) {
-      return '$hour:$minute';
+      return timeStr;
     }
     return '${dt.day}/${dt.month}';
   }
@@ -128,17 +130,6 @@ class _UserListPageState extends ConsumerState<UserListPage>
           ],
         ),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.video_library_rounded,
-                color: AppColors.appBarIconColor),
-            tooltip: 'Reels',
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (context) => const ReelsPage()),
-              );
-            },
-          ),
           IconButton(
             icon: const Icon(Icons.settings_rounded, color: Colors.white),
             tooltip: 'Settings',
@@ -460,19 +451,42 @@ class _UserListPageState extends ConsumerState<UserListPage>
           loading: () => const Center(
             child: CircularProgressIndicator(color: AppColors.primary),
           ),
-          error: (err, stack) => Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Text('Error loading contacts: $err',
-                    style: const TextStyle(color: Colors.red)),
-                const SizedBox(height: 16),
-                ElevatedButton(
-                  onPressed: () => ref.refresh(allUsersProvider),
-                  child: const Text('Retry'),
+          error: (err, stack) => ListView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            children: [
+              Center(
+                child: Padding(
+                  padding: const EdgeInsets.only(top: 80.0),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const SizedBox(height: 16),
+                      const Text(
+                        'Network Connection Error',
+                        style: TextStyle(
+                          color: AppColors.textPrimary,
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 32.0),
+                        child: Text(
+                          'Unable to connect to server. Please check your network or server status and try again.',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            color: AppColors.textSecondary,
+                            fontSize: 13,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 20),
+                    ],
+                  ),
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
       ),
