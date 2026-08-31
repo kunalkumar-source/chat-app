@@ -643,11 +643,6 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                             ],
                           ),
                         ),
-                        const Icon(
-                          Icons.qr_code_rounded,
-                          color: AppColors.primary,
-                          size: 24,
-                        ),
                       ],
                     ),
                   ),
