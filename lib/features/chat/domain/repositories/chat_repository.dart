@@ -34,6 +34,7 @@ abstract class IChatRepository {
 
   // User Actions
   Future<List<ChatUser>> getAllUsers();
+  Future<List<ChatUser>> getAllChatUsers();
   Future<ChatUser?> getParticipant(String userId);
   Stream<ChatUser?> watchUserPresence(String userId);
   Future<void> setUserOnline(String userId);

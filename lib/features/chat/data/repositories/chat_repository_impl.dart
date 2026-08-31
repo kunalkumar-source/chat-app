@@ -133,18 +133,12 @@ class ChatRepositoryImpl implements IChatRepository {
   // ===========================================================================
 
   @override
-  Future<List<ChatUser>> getAllUsers() async {
+  Future<List<ChatUser>> getAllChatUsers() async {
     try {
-      // 1. Fetch fresh users from backend API
-      final users = await _apiService.getAllUsers();
-
-      if (users.isEmpty) {
-        return [];
-      }
+      final users = await _apiService.getAllChatUsers();
+      if (users.isEmpty) return [];
 
       final db = await _dbHelper.database;
-
-      // 2. Cache users in local SQLite database with fresh online presence states
       final batch = db.batch();
       final updatedUsers = <ChatUser>[];
       for (var user in users) {
@@ -163,16 +157,45 @@ class ChatRepositoryImpl implements IChatRepository {
       }
       await batch.commit(noResult: true);
 
-      // 3. Trigger online presence event AFTER users API success response
       if (_activeUserId != null && _activeUserId!.isNotEmpty) {
-        debugPrint(
-            '🟢 [USERS API SUCCESS] Triggering register & user_online for: $_activeUserId');
         setUserOnline(_activeUserId!);
       }
 
       return updatedUsers;
     } catch (e) {
-      debugPrint('⚠️ [CHAT REPO] API user fetch failed: $e');
+      debugPrint('⚠️ [CHAT REPO] API user chat fetch failed: $e');
+      rethrow;
+    }
+  }
+
+  @override
+  Future<List<ChatUser>> getAllUsers() async {
+    try {
+      final users = await _apiService.getAllUsers();
+      if (users.isEmpty) return [];
+
+      final db = await _dbHelper.database;
+      final batch = db.batch();
+      final updatedUsers = <ChatUser>[];
+      for (var user in users) {
+        final isOnline = _presenceStateMap[user.id] ?? user.isOnline;
+        _presenceStateMap[user.id] = isOnline;
+
+        final updatedUser = user.copyWith(isOnline: isOnline);
+        updatedUsers.add(updatedUser);
+
+        final map = ChatUserModel.fromEntity(updatedUser).toMap();
+        map['isOnline'] = isOnline ? 1 : 0;
+        batch.insert('chat_users', map,
+            conflictAlgorithm: ConflictAlgorithm.replace);
+
+        _userPresenceController.add(user.id);
+      }
+      await batch.commit(noResult: true);
+
+      return updatedUsers;
+    } catch (e) {
+      debugPrint('⚠️ [CHAT REPO] API all users fetch failed: $e');
       rethrow;
     }
   }
@@ -583,7 +606,7 @@ class ChatRepositoryImpl implements IChatRepository {
         conflictAlgorithm: ConflictAlgorithm.replace);
 
     // Update conversation summary and increment unread count
-    await db.rawUpdate('''
+    final updatedRows = await db.rawUpdate('''
       UPDATE conversations 
       SET lastMessageText = ?, 
           lastMessageAt = ?, 
@@ -596,6 +619,21 @@ class ChatRepositoryImpl implements IChatRepository {
       senderId,
       conversationId
     ]);
+
+    if (updatedRows == 0 && conversationId.isNotEmpty && senderId.isNotEmpty) {
+      await db.insert(
+        'conversations',
+        {
+          'id': conversationId,
+          'participantId': senderId,
+          'lastMessageText': text,
+          'lastMessageAt': DateTime.now().millisecondsSinceEpoch,
+          'lastMessageSenderId': senderId,
+          'unreadCount': 1,
+        },
+        conflictAlgorithm: ConflictAlgorithm.replace,
+      );
+    }
 
     _messagesUpdateController.add(conversationId);
     _conversationsUpdateController.add(null);

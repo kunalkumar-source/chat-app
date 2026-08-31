@@ -114,6 +114,10 @@ final conversationsProvider = StreamProvider<List<Conversation>>((ref) {
   return ref.watch(chatRepositoryProvider).watchConversations();
 });
 
+final allChatUsersProvider = FutureProvider<List<ChatUser>>((ref) {
+  return ref.watch(chatRepositoryProvider).getAllChatUsers();
+});
+
 final allUsersProvider = FutureProvider<List<ChatUser>>((ref) {
   return ref.watch(chatRepositoryProvider).getAllUsers();
 });

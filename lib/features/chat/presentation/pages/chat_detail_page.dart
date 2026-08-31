@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:testingfeature/core/theme/app_colors.dart';
+import 'package:testingfeature/core/utils/date_formatter.dart';
 import 'package:testingfeature/features/chat/domain/entities/chat_user.dart';
 import 'package:testingfeature/core/widgets/typing_dots_indicator.dart';
 import 'package:testingfeature/features/chat/domain/repositories/chat_repository.dart';
@@ -730,14 +731,6 @@ class _MessageBubble extends StatelessWidget {
 
   const _MessageBubble({required this.message, required this.isMe});
 
-  String _formatMessageTime(DateTime dt) {
-    final hour24 = dt.hour;
-    final minute = dt.minute.toString().padLeft(2, '0');
-    final period = hour24 >= 12 ? 'PM' : 'AM';
-    final hour12 = hour24 % 12 == 0 ? 12 : hour24 % 12;
-    return '$hour12:$minute $period';
-  }
-
   @override
   Widget build(BuildContext context) {
     return Align(
@@ -782,7 +775,7 @@ class _MessageBubble extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
-                  _formatMessageTime(message.createdAt),
+                  DateFormatter.formatAmPm(message.createdAt),
                   style: const TextStyle(
                     color: AppColors.textSubtle,
                     fontSize: 10,

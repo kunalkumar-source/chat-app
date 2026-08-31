@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:testingfeature/core/theme/app_colors.dart';
+import 'package:testingfeature/core/utils/date_formatter.dart';
 import 'package:testingfeature/features/auth/presentation/providers/auth_providers.dart';
 import 'package:testingfeature/features/chat/domain/entities/conversation.dart';
 import 'package:testingfeature/features/chat/domain/repositories/chat_repository.dart';
+import 'package:testingfeature/features/chat/presentation/pages/all_user_list_page.dart';
 import 'package:testingfeature/features/settings/presentation/pages/settings_page.dart';
 import '../providers/chat_providers.dart';
 import 'chat_detail_page.dart';
@@ -71,29 +73,40 @@ class _UserListPageState extends ConsumerState<UserListPage>
     }
   }
 
-  String _formatTime(DateTime? dt) {
-    if (dt == null) return '';
-    final now = DateTime.now();
-    final isToday =
-        dt.day == now.day && dt.month == now.month && dt.year == now.year;
-    final hour24 = dt.hour;
-    final minute = dt.minute.toString().padLeft(2, '0');
-    final period = hour24 >= 12 ? 'PM' : 'AM';
-    final hour12 = hour24 % 12 == 0 ? 12 : hour24 % 12;
-    final timeStr = '$hour12:$minute $period';
-
-    if (isToday) {
-      return timeStr;
-    }
-    return '${dt.day}/${dt.month}';
+  void _showSelectContactBottomSheet(
+      BuildContext context, String? currentUserId) {
+    ref.invalidate(allUsersProvider);
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => SelectContactBottomSheet(
+        currentUserId: currentUserId,
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    final usersAsync = ref.watch(allUsersProvider);
+    final usersAsync = ref.watch(allChatUsersProvider);
     final conversationsAsync = ref.watch(conversationsProvider);
     final currentUser = ref.watch(userProvider);
     final currentUserId = currentUser?.id;
+
+    // Auto-refresh chat user list if a new message arrives from a user not yet in home list
+    ref.listen(conversationsProvider, (previous, next) {
+      next.whenData((convList) {
+        final currentUsers = ref.read(allChatUsersProvider).value ?? [];
+        final existingUserIds = currentUsers.map((u) => u.id).toSet();
+        for (var conv in convList) {
+          if (conv.participantId.isNotEmpty &&
+              !existingUserIds.contains(conv.participantId)) {
+            ref.invalidate(allChatUsersProvider);
+            break;
+          }
+        }
+      });
+    });
 
     // Map of conversation data keyed by participant ID
     final conversationsMap = <String, Conversation>{};
@@ -105,6 +118,14 @@ class _UserListPageState extends ConsumerState<UserListPage>
 
     return Scaffold(
       backgroundColor: AppColors.background,
+      floatingActionButton: FloatingActionButton(
+        backgroundColor: AppColors.primary,
+        foregroundColor: Colors.white,
+        elevation: 4,
+        tooltip: 'New Chat',
+        child: const Icon(Icons.chat_rounded),
+        onPressed: () => _showSelectContactBottomSheet(context, currentUserId),
+      ),
       appBar: AppBar(
         backgroundColor: AppColors.appBarColor,
         elevation: 0,
@@ -145,7 +166,7 @@ class _UserListPageState extends ConsumerState<UserListPage>
       body: RefreshIndicator(
         color: AppColors.primary,
         onRefresh: () async {
-          ref.invalidate(allUsersProvider);
+          ref.invalidate(allChatUsersProvider);
           ref.invalidate(conversationsProvider);
         },
         child: usersAsync.when(
@@ -203,7 +224,7 @@ class _UserListPageState extends ConsumerState<UserListPage>
                     final unreadCount = conversation?.unreadCount ?? 0;
                     final lastMsgText = conversation?.lastMessageText;
                     final lastMsgTimeStr =
-                        _formatTime(conversation?.lastMessageAt);
+                        DateFormatter.formatTime(conversation?.lastMessageAt);
 
                     return Padding(
                       padding: const EdgeInsets.only(bottom: 8.0),
@@ -257,7 +278,7 @@ class _UserListPageState extends ConsumerState<UserListPage>
                                       ),
                                       child: CircleAvatar(
                                         radius: 26,
-                                        backgroundColor: AppColors.border,
+                                        backgroundColor: AppColors.primary,
                                         backgroundImage:
                                             user.avatarUrl != null &&
                                                     user.avatarUrl!.isNotEmpty
@@ -270,7 +291,7 @@ class _UserListPageState extends ConsumerState<UserListPage>
                                                     ? user.name[0].toUpperCase()
                                                     : '?',
                                                 style: const TextStyle(
-                                                  color: AppColors.textPrimary,
+                                                  color: Colors.white,
                                                   fontSize: 18,
                                                   fontWeight: FontWeight.bold,
                                                 ),
